@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import base64
+import io
 
 # NEW: PDF Generation Libraries
 from reportlab.lib.pagesizes import letter
@@ -55,20 +56,20 @@ if uploaded_file:
         vectorstore = FAISS.from_documents(docs, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": 6})
     st.success("Ready!")
-
     # RAG + Reasoning function
     def rag_with_reasoning(query: str):
-        docs = retriever on.invoke(query)
+        # Use the retriever's standard method to fetch relevant documents
+        docs = retriever.get_relevant_documents(query)
         context = "\n\n".join(
             f"Text: {d.page_content}\nSentiment: {d.metadata['sentiment']:.3f}"
             for d in docs
         )
-
+    
         messages = [
             {"role": "system", "content": "You are an expert sentiment analyst. Always think step-by-step in <thinking> tags before answering."},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}\n\n<thinking>Let me analyze this carefully...</thinking>\n\n<answer>"}
         ]
-
+    
         response = client.chat.completions.create(
             model="meta-llama/llama-3.3-70b-instruct",  # or "openai/gpt-oss-20b:free"
             messages=messages,
@@ -76,11 +77,11 @@ if uploaded_file:
             temperature=0.7,
             max_tokens=2000
         )
-
+    
         msg = response.choices[0].message
         reasoning = getattr(msg, "reasoning_details", None)
         reasoning_text = reasoning.thinking if reasoning else "Reasoning not available (model may not support it)"
-
+    
         return {
             "question": query,
             "answer": msg.content.strip(),
@@ -88,21 +89,20 @@ if uploaded_file:
             "retrieved_docs": docs,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
-
     # PDF Generator
     def generate_pdf_report(data):
-        buffer = bytes()
+        buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=1*inch, leftMargin=1*inch, rightMargin=1*inch)
         styles = getSampleStyleSheet()
         story = []
-
+    
         # Title
         story.append(Paragraph("Sentiment Analysis Report", styles['Title']))
         story.append(Spacer(1, 12))
         story.append(Paragraph(f"<b>Date:</b> {data['timestamp']}", styles['Normal']))
         story.append(Paragraph(f"<b>Question:</b> {data['question']}", styles['Normal']))
         story.append(Spacer(1, 20))
-
+    
         # Retrieved Documents Table
         story.append(Paragraph("<b>Retrieved Evidence:</b>", styles['Heading3']))
         table_data = [["#", "Text", "Sentiment"]]
@@ -111,7 +111,7 @@ if uploaded_file:
             label = "Positive" if sentiment > 0.1 else ("Negative" if sentiment < -0.1 else "Neutral")
             color = colors.green if sentiment > 0.1 else (colors.red if sentiment < -0.1 else colors.grey)
             table_data.append([i, d.page_content[:200] + "...", f"{sentiment:.3f} ({label})"])
-
+    
         table = Table(table_data, colWidths=[30, 400, 100])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightblue),
@@ -121,16 +121,19 @@ if uploaded_file:
         ]))
         story.append(table)
         story.append(Spacer(1, 20))
-
+    
         # Reasoning
         story.append(Paragraph("<b>Model Reasoning (Chain-of-Thought):</b>", styles['Heading3']))
-        story.append(Paragraph(data['reasoning).replace("\n", "<br/>"), ParagraphStyle(name='Reasoning', fontName='Courier', fontSize=10)))
+        story.append(Paragraph(data['reasoning'].replace("\n", "<br/>"), ParagraphStyle(name='Reasoning', fontName='Courier', fontSize=10)))
         story.append(Spacer(1, 20))
-
+    
         # Final Answer
         story.append(Paragraph("<b>Final Answer:</b>", styles['Heading3']))
         story.append(Paragraph(data['answer'].replace("\n", "<br/>"), styles['Normal']))
-
+    
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
         doc.build(story)
         return buffer.getvalue()
 
