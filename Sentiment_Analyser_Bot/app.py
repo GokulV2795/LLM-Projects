@@ -2,25 +2,7 @@ import streamlit as st
 import pandas as pd
 from textblob import TextBlob
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-import importlib
-
-# Try community vectorstore first, fall back to core langchain, and give an actionable error.
-FAISS = None
-for _mod in ("langchain_community.vectorstores", "langchain.vectorstores"):
-    try:
-        mod = importlib.import_module(_mod)
-        FAISS = getattr(mod, "FAISS")
-        break
-    except Exception:
-        FAISS = None
-
-if FAISS is None:
-    raise ImportError(
-        "Could not import FAISS vectorstore. Install dependencies:\n"
-        "  pip install langchain-community faiss-cpu\n"
-        "or, if using core langchain:\n"
-        "  pip install langchain faiss-cpu\n"
-    )
+from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
