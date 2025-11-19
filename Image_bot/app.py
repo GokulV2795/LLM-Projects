@@ -22,7 +22,7 @@ if not os.getenv("OPENROUTER_API_KEY"):
     st.error("Add OPENROUTER_API_KEY to .env file!")
     st.stop()
 
-st.title("Image Generation Bot – 100% Working")
+st.title("Image Generation Bot...")
 st.caption("Uses FLUX or SDXL Turbo via OpenRouter — no 405, no crashes")
 
 # Load CSV
@@ -51,7 +51,7 @@ selected_rows = image_df[image_df["id"].isin(selected_ids)].reset_index(drop=Tru
 # Choose model
 model_choice = st.radio(
     "Choose model (both free & instant)",
-    ["openai/gpt-5.1","black-forest-labs/flux-schnell-dev", "stability-ai/sdxl-turbo"],
+    ["openai/gpt-5-image","black-forest-labs/flux-schnell-dev", "stability-ai/sdxl-turbo"],
     index=0
 )
 
