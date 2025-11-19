@@ -51,7 +51,7 @@ selected_rows = image_df[image_df["id"].isin(selected_ids)].reset_index(drop=Tru
 # Choose model
 model_choice = st.radio(
     "Choose model (both free & instant)",
-    ["black-forest-labs/flux-schnell-dev", "stability-ai/sdxl-turbo"],
+    ["openai/gpt-5.1","black-forest-labs/flux-schnell-dev", "stability-ai/sdxl-turbo"],
     index=0
 )
 
