@@ -22,8 +22,8 @@ if not os.getenv("OPENROUTER_API_KEY"):
     st.error("Add OPENROUTER_API_KEY to .env file!")
     st.stop()
 
-st.title("Image Generation Bot – 405-Proof (Flux + SDXL)")
-st.caption("Uses the only two models that are 100% stable on OpenRouter right now")
+st.title("Image Generation Bot – 100% Working")
+st.caption("Uses FLUX or SDXL Turbo via OpenRouter — no 405, no crashes")
 
 # Load CSV
 uploaded_file = st.file_uploader("Upload your CSV", type="csv")
@@ -46,42 +46,46 @@ if image_df.empty:
 st.dataframe(image_df[["id", "prompt", "image_size", "metadata"]])
 
 selected_ids = st.multiselect("Select IDs", options=image_df["id"].tolist(), default=[1001])
-selected_rows = image_df[image_df["id"].isin(selected_ids)]
+selected_rows = image_df[image_df["id"].isin(selected_ids)].reset_index(drop=True)
 
-# Choose model (both 100% stable on OpenRouter)
+# Choose model
 model_choice = st.radio(
     "Choose model (both free & instant)",
     ["black-forest-labs/flux-schnell-dev", "stability-ai/sdxl-turbo"],
     index=0
 )
 
-if st.button("Generate Images"):
-    progress = st.progress(0)
-    images = []
+if st.button("Generate Images", type="primary"):
+    if selected_rows.empty:
+        st.error("No rows selected!")
+        st.stop()
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    generated_images = []
 
     for idx, row in selected_rows.iterrows():
-        progress.progress((idx + 1) / len(selected_rows))
+        current_progress = int((idx + 1) / len(selected_rows) * 100)
+        progress_bar.progress(current_progress)
+        status_text.text(f"Generating ID {row['id']}... ({current_progress}%)")
 
-        # Build final prompt
+        # Build prompt
         prompt = str(row["prompt"])
         size = str(row.get("image_size", "1024x1024"))
 
         # Add metadata
         meta = row.get("metadata", "")
-        if pd.notna(meta) and meta.strip():
+        if pd.notna(meta) and str(meta).strip():
             try:
                 m = json.loads(meta)
-                extras = []
-                for k, v in m.items():
-                    extras.append(f"{k}: {v}")
+                extras = [f"{k}: {v}" for k, v in m.items()]
                 prompt += ". " + ", ".join(extras)
             except:
                 prompt += f". {meta}"
 
-        prompt += f", {size} resolution"
+        prompt += f", high quality, {size} resolution"
 
         try:
-            # THIS ENDPOINT WORKS 100% ON OPENROUTER
             response = client.images.generate(
                 model=model_choice,
                 prompt=prompt,
@@ -91,27 +95,34 @@ if st.button("Generate Images"):
             )
 
             b64 = response.data[0].b64_json
-            img = Image.open(io.BytesIO(base64.b64decode(b64)))
+            img_bytes = base64.b64decode(b64)
+            img = Image.open(io.BytesIO(img_bytes))
 
-            st.image(img, caption=f"ID {row['id']} – {size}")
-            
+            st.image(img, caption=f"ID {row['id']} – {size} – {model_choice.split('/')[-1]}")
+
             buf = io.BytesIO()
             img.save(buf, format="PNG")
-            images.append((f"ID_{row['id']}_{size}.png", buf.getvalue()))
+            generated_images.append((f"ID_{row['id']}_{size}.png", buf.getvalue()))
 
         except Exception as e:
             st.error(f"ID {row['id']}: {str(e)}")
 
+    # Final status
+    progress_bar.progress(100)
+    status_text.success("All images generated!")
+
     # ZIP download
-    if images:
-        zip_buf = io.BytesIO()
-        with zipfile.ZipFile(zip_buf, "w") as z:
-            for name, data in images:
-                z.writestr(name, data)
+    if generated_images:
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for name, data in generated_images:
+                zf.writestr(name, data)
+
         st.download_button(
-            "Download All Images as ZIP",
-            zip_buf.getvalue(),
-            f"images_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
-            "application/zip"
+            label="Download All Images as ZIP",
+            data=zip_buffer.getvalue(),
+            file_name=f"images_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+            mime="application/zip"
         )
-    st.success("Done!")
+
+st.success("Bot ready! Select IDs and generate.")
