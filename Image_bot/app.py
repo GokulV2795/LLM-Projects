@@ -101,7 +101,7 @@ if st.button("Generate Images"):
         # Generate with DALL-E 3 via OpenRouter
         try:
             response = client.images.generate(
-                model="openai/dall-e-3",  # High-quality model on OpenRouter
+                model="black-forest-labs/flux-schnell-dev",  # High-quality model on OpenRouter
                 prompt=prompt,
                 n=1,
                 size=size,  # Use exact size from CSV
