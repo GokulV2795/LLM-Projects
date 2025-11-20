@@ -1,0 +1,9 @@
+streamlit
+pandas
+python-dotenv
+plotly>=5.18.0
+kaleido>=0.2.1
+openai>=1.40.0
+snowflake-connector-python
+requests>=2.30.0
+sendgrid>=6.10.0
