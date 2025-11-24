@@ -1,0 +1,71 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+
+# Environment / secrets
+.env
+.env.*
+secrets.*
+credentials.json
+
+# Python packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Distribution artifacts
+*.whl
+
+# Logs and reports
+*.log
+*.csv
+*.xlsx
+*.parquet
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints
+
+# Streamlit
+.streamlit/
+.streamlit/*
+
+# Database files
+*.db
+*.sqlite3
+
+# Large data or dataset folders (keep out of git)
+data/
+datasets/
+exports/
+
+# API keys / local router keys
+openrouter_api_key*
+openai_api_key*
+*API_KEY*
+*api_key*
+
+# Misc
+*.swp
+*.tmp
