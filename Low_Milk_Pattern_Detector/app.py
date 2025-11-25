@@ -26,39 +26,48 @@ st.markdown("**Select region → View stats, trends, top risky farmers & send re
 EMAIL_TEMPLATE = """
 <!DOCTYPE html>
 <html>
-<body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-  <h1 style="color: #d32f2f;">REGIONAL MILK QUALITY REPORT</h1>
-  <h2>Region: {{ region }} | {{ state }}</h2>
-  <p><strong>Date:</strong> {{ today }}</p>
+<body style="font-family: Arial, sans-serif; color: #333; line-height: 1.8; margin: 20px;">
+  <h1 style="color: #d32f2f; text-align: center;">REGIONAL MILK QUALITY REPORT</h1>
+  <h2 style="color: #1976d2;">Region: {{ region }} | {{ state }}</h2>
+  <p><strong>Report Date:</strong> {{ today }}</p>
   
   <h3>Key Statistics</h3>
-  <ul>
+  <ul style="font-size: 16px;">
     <li>Total Farmers: <strong>{{ total_farmers }}</strong></li>
     <li>Active Today: <strong>{{ active_today }}</strong></li>
-    <li>Avg Fat: <strong>{{ avg_fat }}%</strong> | Avg SNF: <strong>{{ avg_snf }}%</strong></li>
-    <li>Risky Farmers: <strong>{{ risky_count }}</strong> ({{ risky_pct }}%)</li>
+    <li>Average Fat: <strong>{{ avg_fat }}%</strong> | Average SNF: <strong>{{ avg_snf }}%</strong></li>
+    <li>Risky Farmers: <strong style="color:#d32f2f;">{{ risky_count }}</strong> ({{ risky_pct }}% of total)</li>
   </ul>
 
-  <h3>Top 5 Risky Farmers</h3>
-  <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-    <tr style="background: #f44336; color: white;">
-      <th>Rank</th><th>Name</th><th>ID</th><th>Panchayat</th><th>Fat</th><th>SNF</th><th>Drop</th><th>Status</th>
+  <h3>Top 5 Risky Farmers – Immediate Action Required</h3>
+  <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 14px;">
+    <tr style="background: #d32f2f; color: white; text-align: center;">
+      <th>Rank</th><th>Farmer Name</th><th>ID</th><th>Panchayat</th><th>Fat %</th><th>SNF %</th><th>Drop</th><th>Status</th>
     </tr>
     {% for f in top5 %}
-    <tr>
-      <td>{{ loop.index }}</td>
+    <tr style="text-align: center;">
+      <td><strong>{{ loop.index }}</strong></td>
       <td><strong>{{ f.name }}</strong></td>
       <td>{{ f.id }}</td>
       <td>{{ f.panchayat }}</td>
       <td>{{ f.fat }}</td>
       <td>{{ f.snf }}</td>
       <td>{{ f.drop }}</td>
-      <td style="color:red;font-weight:bold">{{ f.status }}</td>
+      <td style="color:#d32f2f; font-weight:bold;">{{ f.status }}</td>
     </tr>
     {% endfor %}
   </table>
-  <hr>
-  <p><em>Automated Report • Milk Quality System</em></p>
+
+  <div style="background:#fff3e0; padding:15px; margin:20px 0; border-left:5px solid #ff9800; font-size:15px;">
+    <p><strong>Urgent Action Required:</strong></p>
+    <p>Immediate focus must be given to the top 5 flagged farmers and the 10 worst-performing panchayats. Conduct on-site visits within the next <strong>48–72 hours</strong> to audit cattle feed quality, water sources, storage practices, and test for adulteration.</p>
+    <p>Farmers showing consistent decline over the past 4 months must receive written warnings, mandatory training on best feeding practices, and compulsory mineral mixture usage.</p>
+    <p>Regions with more than 8% risky farmers require intensified weekly monitoring and supervised collection until average Fat ≥ 3.6% and SNF ≥ 8.5% is achieved.</p>
+    <p><strong>Quick and decisive intervention now will prevent wider quality deterioration and protect overall collection standards.</strong></p>
+  </div>
+
+  <hr style="border: 1px solid #ddd; margin: 30px 0;">
+  <p style="color:#777; font-size:13px;"><em>Automated Report • Low-Quality Milk Alert System</em></p>
 </body>
 </html>
 """
@@ -148,8 +157,8 @@ risky_pct = round(risky_count / total_farmers * 100, 1) if total_farmers > 0 els
 top5 = risky_df.sort_values("Risk_Score", ascending=False).drop_duplicates("Farmer_ID").head(5)
 
 # ============================= CHARTS =============================
-st.subheader("Quality Trend (Last 30 Days)")
-last_30 = region_df[region_df["Date"] >= (datetime.now() - timedelta(days=30))]
+st.subheader("Quality Trend (Last 3 days)")
+last_30 = region_df[region_df["Date"] >= (datetime.now() - timedelta(days=120))]
 trend = last_30.groupby(last_30["Date"].dt.date)[["Fat_Content","SNF_Content"]].mean().reset_index()
 trend["Date"] = pd.to_datetime(trend["Date"])
 
