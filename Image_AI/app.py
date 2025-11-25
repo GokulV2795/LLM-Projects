@@ -3,12 +3,12 @@ from PIL import Image
 import io
 import base64
 import re
-import time  # for thread_id
+import time
 from typing import TypedDict, Annotated, List
 
-# NEW: Load .env file
+# Load .env file
 from dotenv import load_dotenv
-load_dotenv()  # <-- This loads your .env file
+load_dotenv()
 
 import os
 from langchain_openai import ChatOpenAI
@@ -18,19 +18,14 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 # ====================== CONFIG ======================
-# Now safely reads from .env (or environment variables)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# Critical: Stop app if key is missing
 if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.strip() == "":
-    st.error("OPENROUTER_API_KEY not found! Please add it to your .env file.")
+    st.error("OPENROUTER_API_KEY not found! Add it to your .env file.")
     st.info("Create a file named `.env` in your project folder with:\n`OPENROUTER_API_KEY=sk-or-v1-...`")
     st.stop()
 
-if OPENROUTER_API_KEY.startswith("sk-or-v1-") is False:
-    st.warning("Your OpenRouter key seems invalid. It should start with `sk-or-v1-`")
-
-MODEL = "google/gemini-3-pro-image-preview"
+MODEL = "meta-llama/llama-3.2-90b-vision-instruct"
 
 llm = ChatOpenAI(
     model=MODEL,
@@ -55,7 +50,7 @@ def refine_prompt(state: AgentState) -> dict:
 Always respond conversationally and end with:
 FINAL PROMPT: "your best refined prompt here"
 
-Make it vivid, detailed, and optimized for Gemini 3 Pro image generation."""),
+Make it vivid, detailed, and optimized for Meta-llama image generation."""),
         MessagesPlaceholder(variable_name="messages"),
     ])
     chain = prompt | llm
@@ -110,9 +105,17 @@ def extract_final_prompt(state: AgentState) -> dict:
         return {"current_prompt": new_prompt}
     return state
 
-# ====================== BUILD GRAPH ======================
+# ====================== BUILD GRAPH (FIXED!) ======================
+def should_generate(state: AgentState) -> str:
+    last_message = state["messages"][-1].content.lower()
+    trigger_words = ["generate", "create", "make", "edit", "show", "now", "go", "ready"]
+    if any(word in last_message for word in trigger_words):
+        return "generate"
+    return "refine"
+
 def create_graph():
     graph = StateGraph(AgentState)
+
     graph.add_node("refine", refine_prompt)
     graph.add_node("generate", generate_or_edit_image)
     graph.add_node("extract", extract_final_prompt)
@@ -121,9 +124,11 @@ def create_graph():
     graph.add_edge("refine", "extract")
     graph.add_conditional_edges(
         "extract",
-        lambda s: "generate" if any(word in s["messages"][-1].content.lower() 
-                                  for word in ["generate", "create", "make", "edit", "show me", "now"]),
-        {"generate": "generate", None: "refine"}
+        should_generate,  # Fixed: proper function reference
+        {
+            "generate": "generate",
+            "refine": "refine"
+        }
     )
     graph.add_edge("generate", END)
 
@@ -138,11 +143,18 @@ st.title("LangGraph + OpenRouter Image Agent")
 st.caption("True stateful agent • Image generation & editing • Powered by Gemini 3 Pro")
 
 # Initialize session state
-for key in ["thread_id", "generated_image", "aspect_ratio", "uploaded_b64", "uploaded_mime", "is_edit_mode"]:
+defaults = {
+    "thread_id": f"thread_{int(time.time())}",
+    "aspect_ratio": "1:1",
+    "generated_image": None,
+    "chat_history": [],
+    "uploaded_b64": None,
+    "uploaded_mime": None,
+    "is_edit_mode": False
+}
+for key, value in defaults.items():
     if key not in st.session_state:
-        st.session_state[key] = ("thread_001" if key == "thread_id" 
-                                else "1:1" if key == "aspect_ratio" 
-                                else None)
+        st.session_state[key] = value
 
 # Sidebar
 with st.sidebar:
@@ -152,6 +164,7 @@ with st.sidebar:
     if st.button("New Conversation"):
         st.session_state.thread_id = f"thread_{int(time.time())}"
         st.session_state.chat_history = []
+        st.session_state.generated_image = None
         st.rerun()
 
     st.divider()
@@ -162,7 +175,7 @@ with st.sidebar:
         st.session_state.uploaded_b64 = b64
         st.session_state.uploaded_mime = uploaded.type
         st.session_state.is_edit_mode = True
-        st.image(uploaded, caption="Image loaded for editing", width=200)
+        st.image(uploaded, caption="Ready for editing", width=200)
     else:
         st.session_state.uploaded_b64 = None
         st.session_state.uploaded_mime = None
@@ -178,20 +191,19 @@ initial_state = {
 }
 
 # Display chat history
-for msg in st.session_state.get("chat_history", []):
+for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
         if msg.get("image"):
             st.image(msg["image"])
 
 # User input
-if prompt := st.chat_input("Describe your image, refine it, or type 'generate' to create it..."):
+if prompt := st.chat_input("Describe your image or type 'generate' to create it..."):
     with st.chat_message("user"):
         st.write(prompt)
 
     config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
-    # Set initial prompt
     if not initial_state["current_prompt"]:
         base = "Edit the uploaded image:" if st.session_state.is_edit_mode else "Generate an image of:"
         initial_state["current_prompt"] = f"{base} {prompt}"
@@ -203,17 +215,16 @@ if prompt := st.chat_input("Describe your image, refine it, or type 'generate' t
             pass
         final_state = app.invoke(None, config)
 
-    # Display new assistant messages
+    # Display new messages
     new_msgs = []
     for msg in final_state["messages"]:
         if isinstance(msg, AIMessage):
-            existing = [m for m in st.session_state.get("chat_history", []) if m.get("content") == msg.content]
-            if not existing:
+            if not any(m["content"] == msg.content for m in st.session_state.chat_history):
                 with st.chat_message("assistant"):
                     st.write(msg.content)
                     new_msgs.append({"role": "assistant", "content": msg.content})
 
-    # Show generated image
+    # Show image if generated
     if st.session_state.generated_image:
         with st.chat_message("assistant"):
             st.image(st.session_state.generated_image, caption=f"Generated: {st.session_state.generated_prompt}")
@@ -222,12 +233,9 @@ if prompt := st.chat_input("Describe your image, refine it, or type 'generate' t
             st.download_button(
                 "Download Image",
                 st.session_state.generated_image,
-                f"image_{st.session_state.thread_id[-6:]}.png",
+                "generated_image.png",
                 "image/png"
             )
 
-    # Save history
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
     st.session_state.chat_history.extend(new_msgs)
     st.rerun()
